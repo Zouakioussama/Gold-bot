@@ -1,0 +1,41 @@
+name: BTC bot
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: btc-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run one cycle
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.BTC_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SYMBOL: BTC-USD
+          STATE_FILE: btc_state.json
+        run: python btc_bot.py --cycle
+      - name: Save cooldown state
+        run: |
+          if [ -f btc_state.json ] && [ -n "$(git status --porcelain btc_state.json)" ]; then
+            git config user.name "btc-bot"
+            git config user.email "btc-bot@users.noreply.github.com"
+            git add btc_state.json
+            git commit -m "update btc state"
+            git pull --rebase
+            git push
+          fi
